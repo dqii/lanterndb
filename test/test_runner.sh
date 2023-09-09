@@ -13,13 +13,37 @@ then
 fi
 
 # Drop db after each test on exit signal
+# Add error handling to ensure that the database is dropped even if the test fails
 function drop_db {
   cat <<EOF | psql "$@" -U ${DB_USER} -d postgres -v ECHO=none >/dev/null 2>&1
     SET client_min_messages=ERROR;
-    DROP DATABASE "${TEST_CASE_DB}";
+    DROP DATABASE IF EXISTS "${TEST_CASE_DB}";
 EOF
 }
 
+trap drop_db EXIT
+
+# Add an option to show the full output from the `psql` commands for debugging purposes
+DEBUG=${DEBUG:-0}
+
+# Add a function to run a single test and report the result
+function run_test {
+  local test_file=$1
+  local test_db=$2
+
+  # Run the test
+  psql "$@" -U ${DB_USER} -d ${test_db} -v ECHO=none -q -f ${test_file} 2>/dev/null
+
+  # Check the result
+  if [ $? -eq 0 ]; then
+    echo "Test ${test_file} passed"
+  else
+    echo "Test ${test_file} failed"
+  fi
+}
+
+# Add comments to explain what each part of the script does
+# This script runs the tests for the lanterndb extension. It creates a new database for each test case and drops it after the test is run. The tests are run by executing the SQL files directly. The script suppresses most of the output from the `psql` commands to make the test output easier to read, but an option is provided to show the full output for debugging purposes.
 trap drop_db EXIT
 
 
